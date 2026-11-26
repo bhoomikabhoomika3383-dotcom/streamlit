@@ -2,371 +2,201 @@
 import streamlit as st
 import pandas as pd
 import numpy as np
+import matplotlib.pyplot as plt
 import plotly.express as px
+import altair as alt
 
-# ==========================================
+# -----------------------------------------
 # 1. PAGE CONFIGURATION
-# ==========================================
+# -----------------------------------------
 
 st.set_page_config(
-    page_title="Superstore Sales Dashboard",
-    page_icon="Sales",
+    page_title="Sales Visualization Dashboard",
+    
     layout="wide"
 )
 
-st.title("Superstore Sales Analysis Dashboard")
-st.write("Interactive dashboard for analyzing sales, profit, customers and products.")
+st.title("Sales Data Visualization Dashboard")
 
-# ==========================================
-# 2. LOAD DATA
-# ==========================================
+# 2. CREATE DUMMY DATA
+# -----------------------------------------
 
 @st.cache_data
-def load_data(file):
+def create_data():
 
-    df = pd.read_excel(
-        file,
-        sheet_name="Orders"
+    np.random.seed(42)
+
+    dates = pd.date_range(
+        start="2025-01-01",
+        periods=100,
+        freq="D"
     )
 
-    # Convert date columns
-    df["Order Date"] = pd.to_datetime(df["Order Date"])
-    df["Ship Date"] = pd.to_datetime(df["Ship Date"])
+    regions = ["North", "South", "East", "West"]
+
+    states = ["Delhi", "Karnataka", "West Bengal", "Maharashtra"]
+
+    cities = ["Delhi", "Bangalore", "Kolkata", "Mumbai"]
+
+    products = ["Laptop", "Mobile", "Tablet", "Headphones"]
+
+    categories = ["Electronics", "Accessories"]
+
+    df = pd.DataFrame({
+        "Date": dates,
+        "Region": np.random.choice(regions, 100),
+        "State": np.random.choice(states, 100),
+        "City": np.random.choice(cities, 100),
+        "Product": np.random.choice(products, 100),
+        "Category": np.random.choice(categories, 100),
+        "Sales": np.random.randint(1000, 15000, 100),
+        "Profit": np.random.randint(100, 5000, 100),
+        "Quantity": np.random.randint(1, 20, 100),
+        "Discount": np.random.choice([5, 10, 15, 20], 100)
+    })
 
     return df
 
 
-# Upload Excel file
-uploaded_file = st.sidebar.file_uploader(
-    "Upload Superstore Excel File",
-    type=["xlsx"]
-)
+df = create_data()
 
-if uploaded_file is not None:
+# -----------------------------------------
+# 3. DISPLAY DATASET
+# -----------------------------------------
 
-    df = load_data(uploaded_file)
+st.header("1. Dummy Sales Dataset")
 
-else:
-    st.info("Please upload your Superstore Excel file.")
-    st.stop()
+st.dataframe(df, use_container_width=True)
 
-# ==========================================
-# 3. SIDEBAR FILTERS
-# ==========================================
+st.write("Total Records:", len(df))
 
-st.sidebar.header("Dashboard Filters")
+# -----------------------------------------
+# 4. LINE CHART
+# -----------------------------------------
 
-regions = st.sidebar.multiselect(
-    "Select Region",
-    options=sorted(df["Region"].dropna().unique()),
-    default=sorted(df["Region"].dropna().unique())
-)
+st.header("2. Line Chart ")
 
-categories = st.sidebar.multiselect(
-    "Select Category",
-    options=sorted(df["Category"].dropna().unique()),
-    default=sorted(df["Category"].dropna().unique())
-)
+st.write("Purpose: Analyze sales trends over time.")
 
-segments = st.sidebar.multiselect(
-    "Select Customer Segment",
-    options=sorted(df["Segment"].dropna().unique()),
-    default=sorted(df["Segment"].dropna().unique())
-)
+daily_sales = df.groupby("Date")["Sales"].sum()
 
-ship_modes = st.sidebar.multiselect(
-    "Select Ship Mode",
-    options=sorted(df["Ship Mode"].dropna().unique()),
-    default=sorted(df["Ship Mode"].dropna().unique())
-)
+st.line_chart(daily_sales)
 
-min_date = df["Order Date"].min().date()
-max_date = df["Order Date"].max().date()
+# -----------------------------------------
+# 5. BAR CHART
+# -----------------------------------------
 
-date_range = st.sidebar.date_input(
-    "Select Order Date Range",
-    value=(min_date, max_date),
-    min_value=min_date,
-    max_value=max_date
-)
+st.header("3. Bar Chart ")
 
+st.write("Purpose: Compare sales across different regions.")
 
-# ==========================================
-# 4. APPLY FILTERS
-# ==========================================
+region_sales = df.groupby("Region")["Sales"].sum()
 
-filtered_df = df[
-    (df["Region"].isin(regions)) &
-    (df["Category"].isin(categories)) &
-    (df["Segment"].isin(segments)) &
-    (df["Ship Mode"].isin(ship_modes))
-].copy()
+st.bar_chart(region_sales)
 
-if len(date_range) == 2:
+# -----------------------------------------
+# 6. AREA CHART
+# -----------------------------------------
 
-    start_date, end_date = date_range
+st.header("4. Area Chart ")
 
-    filtered_df = filtered_df[
-        (filtered_df["Order Date"].dt.date >= start_date) &
-        (filtered_df["Order Date"].dt.date <= end_date)
-    ]
-
-
-# ==========================================
-# 5. KPI METRICS
-# ==========================================
-
-st.header("Business Performance Overview")
-total_sales = filtered_df["Sales"].sum()
-total_profit = filtered_df["Profit"].sum()
-total_orders = filtered_df["Order ID"].nunique()
-total_quantity = filtered_df["Quantity"].sum()
-
-col1, col2, col3, col4 = st.columns(4)
-
-col1.metric(
-    "Total Sales",
-    f"${total_sales:,.2f}"
-)
-
-col2.metric(
-    "Total Profit",
-    f"${total_profit:,.2f}"
-)
-
-col3.metric(
-    "Total Orders",
-    f"{total_orders:,}"
-)
-
-col4.metric(
-    "Total Quantity",
-    f"{total_quantity:,}"
-)
-
-st.divider()
-
-
-# ==========================================
-# 6. MONTHLY SALES TREND
-# ==========================================
-
-st.header("Sales Trend Analysis")
+st.write("Purpose: Show changes in sales over time.")
 
 monthly_sales = (
-    filtered_df
-    .set_index("Order Date")
+    df.set_index("Date")
     .resample("ME")["Sales"]
     .sum()
-    .reset_index()
 )
 
-fig1 = px.line(
-    monthly_sales,
-    x="Order Date",
-    y="Sales",
-    title="Monthly Sales Trend",
-    markers=True,
-    template="plotly_white"
-)
+st.area_chart(monthly_sales)
 
-st.plotly_chart(fig1, use_container_width=True)
+# -----------------------------------------
+# 7. SCATTER CHART
+# -----------------------------------------
 
+st.header("5. Scatter Chart ")
 
-# ==========================================
-# 7. CATEGORY ANALYSIS
-# ==========================================
+st.write("Purpose: Understand the relationship between sales and profit.")
 
-st.header("Category Analysis")
-
-col1, col2 = st.columns(2)
-
-category_sales = (
-    filtered_df.groupby("Category", as_index=False)["Sales"]
-    .sum()
-)
-
-with col1:
-
-    fig2 = px.pie(
-        category_sales,
-        names="Category",
-        values="Sales",
-        title="Sales Distribution by Category",
-        hole=0.4
-    )
-
-    st.plotly_chart(fig2, use_container_width=True)
-
-
-subcategory_sales = (
-    filtered_df.groupby("Sub-Category", as_index=False)["Sales"]
-    .sum()
-    .sort_values("Sales", ascending=True)
-)
-
-with col2:
-
-    fig3 = px.bar(
-        subcategory_sales,
-        x="Sales",
-        y="Sub-Category",
-        orientation="h",
-        title="Sales by Sub-Category",
-        template="plotly_white"
-    )
-
-    st.plotly_chart(fig3, use_container_width=True)
-
-
-# ==========================================
-# 8. REGIONAL ANALYSIS
-# ==========================================
-
-st.header("Regional Performance")
-
-col1, col2 = st.columns(2)
-
-region_sales = (
-    filtered_df.groupby("Region", as_index=False)
-    [["Sales", "Profit"]].sum()
-)
-
-with col1:
-
-    fig4 = px.bar(
-        region_sales,
-        x="Region",
-        y="Sales",
-        title="Sales by Region",
-        color="Region"
-    )
-
-    st.plotly_chart(fig4, use_container_width=True)
-
-
-with col2:
-
-    fig5 = px.bar(
-        region_sales,
-        x="Region",
-        y="Profit",
-        title="Profit by Region",
-        color="Region"
-    )
-
-    st.plotly_chart(fig5, use_container_width=True)
-
-
-# ==========================================
-# 9. TOP 10 CUSTOMERS
-# ==========================================
-
-st.header("Customer Analysis")
-
-top_customers = (
-    filtered_df.groupby("Customer Name", as_index=False)["Sales"]
-    .sum()
-    .sort_values("Sales", ascending=False)
-    .head(10)
-)
-
-fig6 = px.bar(
-    top_customers,
+st.scatter_chart(
+    df,
     x="Sales",
-    y="Customer Name",
-    orientation="h",
-    title="Top 10 Customers by Sales",
-    color="Sales"
+    y="Profit",
+    color="Region",
+    size="Quantity"
 )
 
-fig6.update_layout(
-    yaxis={"categoryorder": "total ascending"}
+
+# -----------------------------------------
+# 9. MATPLOTLIB CHART
+# -----------------------------------------
+
+st.header("7. Matplotlib Chart ")
+
+st.write("Purpose: Create customized visualizations.")
+
+product_sales = df.groupby("Product")["Sales"].sum()
+
+fig, ax = plt.subplots()
+
+ax.bar(
+    product_sales.index,
+    product_sales.values
 )
 
-st.plotly_chart(fig6, use_container_width=True)
+ax.set_title("Product Wise Sales")
+ax.set_xlabel("Products")
+ax.set_ylabel("Sales Amount")
 
+plt.xticks(rotation=20)
 
-# ==========================================
-# 10. TOP 10 PRODUCTS
-# ==========================================
+st.pyplot(fig)
 
-st.header("Product Analysis")
+# -----------------------------------------
+# 10. PLOTLY CHART
+# -----------------------------------------
 
-top_products = (
-    filtered_df.groupby("Product Name", as_index=False)["Sales"]
-    .sum()
-    .sort_values("Sales", ascending=False)
-    .head(10)
+st.header("8. Plotly Chart ")
+
+st.write("Purpose: Create interactive visualizations.")
+
+fig_plotly = px.pie(
+    df,
+    names="Category",
+    values="Sales",
+    title="Sales Distribution by Category"
 )
 
-fig7 = px.bar(
-    top_products,
-    x="Sales",
-    y="Product Name",
-    orientation="h",
-    title="Top 10 Products by Sales",
-    color="Sales"
+st.plotly_chart(
+    fig_plotly,
+    use_container_width=True
 )
 
-fig7.update_layout(
-    yaxis={"categoryorder": "total ascending"}
+# -----------------------------------------
+# 11. ALTAIR CHART
+# -----------------------------------------
+
+st.header("9. Altair Chart ")
+
+st.write("Purpose: Create interactive statistical charts.")
+
+altair_data = df.groupby("Region", as_index=False)["Profit"].sum()
+
+chart = alt.Chart(altair_data).mark_bar().encode(
+    x=alt.X("Region:N"),
+    y=alt.Y("Profit:Q"),
+    color="Region",
+    tooltip=["Region", "Profit"]
+).properties(
+    title="Region Wise Profit"
 )
 
-st.plotly_chart(fig7, use_container_width=True)
-
-
-# ==========================================
-# 11. SHIPPING ANALYSIS
-# ==========================================
-
-st.header("Shipping Analysis")
-
-shipping = (
-    filtered_df.groupby("Ship Mode", as_index=False)
-    .agg(
-        Sales=("Sales", "sum"),
-        Orders=("Order ID", "nunique")
-    )
+st.altair_chart(
+    chart,
+    use_container_width=True
 )
 
-col1, col2 = st.columns(2)
-
-with col1:
-
-    fig8 = px.bar(
-        shipping,
-        x="Ship Mode",
-        y="Sales",
-        title="Sales by Shipping Mode",
-        color="Ship Mode"
-    )
-
-    st.plotly_chart(fig8, use_container_width=True)
-
-
-with col2:
-
-    fig9 = px.pie(
-        shipping,
-        names="Ship Mode",
-        values="Orders",
-        title="Orders by Shipping Mode"
-    )
-
-    st.plotly_chart(fig9, use_container_width=True)
-
-
-
-
-
-# ==========================================
-# 12. FOOTER
-# ==========================================
 
 st.divider()
 
-st.caption(
-    "Superstore Sales Dashboard | Created using Streamlit, "
-    "Pandas, NumPy and Plotly"
-)
+st.success("All Streamlit Data Visualization Features Completed!")
